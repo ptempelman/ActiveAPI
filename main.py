@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request
 import joblib
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import uvicorn
 import xgboost
 
 from utils import create_df, create_df_predict
