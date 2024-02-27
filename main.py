@@ -1,5 +1,5 @@
 import json
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 import joblib
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -13,7 +13,7 @@ app = FastAPI()
 async def read_root():
     return {"Hello": "World"}
 
-@app.get("/train_model")
+@app.get("/retrain")
 async def train_model():
     df = create_df()
     
@@ -28,9 +28,13 @@ async def train_model():
     
     return {"message": "Model trained and saved successfully!"}
 
-@app.get("/predict")
-async def predict(request_body):
-    data = json.loads(request_body)
+@app.post("/predict")
+async def predict(request: Request):
+    
+    data = await request.json()
+
+    print(data)
+        
     user_id = f"'{data['userId']}'"
     activity_ids = data["activityIds"]
     activity_ids_str = ", ".join([f"'{id}'" for id in activity_ids])
