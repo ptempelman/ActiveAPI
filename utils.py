@@ -1,6 +1,5 @@
 import os
 from urllib.parse import urlparse
-from fastapi import FastAPI
 import joblib
 import pandas as pd
 import mysql.connector
@@ -8,13 +7,15 @@ from sklearn.calibration import LabelEncoder
 from sklearn.discriminant_analysis import StandardScaler
 
 from dotenv import load_dotenv
-load_dotenv() 
+
+load_dotenv()
+
 
 def establish_db_connection():
     print("Establishing connection...")
     print(os.getenv("DATABASE_URL"))
     print(os.getenv("SSL_CA_LOCATION"))
-    
+    print(os.getenv("SSL_CA_LOCATION") is not None)
     database_url = os.getenv("DATABASE_URL")
 
     # Parse the database URL
@@ -28,7 +29,7 @@ def establish_db_connection():
     ssl_config = {
         "use_pure": True,
         "ssl_verify_cert": True,
-        'ssl_ca': os.getenv("SSL_CA_LOCATION"),
+        "ssl_ca": os.getenv("SSL_CA_LOCATION"),
     }
 
     # Establishing the connection
@@ -40,6 +41,7 @@ def establish_db_connection():
         **ssl_config,
     )
     return conn
+
 
 def create_df():
 
@@ -91,48 +93,52 @@ def create_df():
 
     df = pd.read_sql(query, conn)
     conn.close()
-    
-    categories = df['Categories'].str.get_dummies(sep=', ')
+
+    categories = df["Categories"].str.get_dummies(sep=", ")
     df = pd.concat([df, categories], axis=1)
 
     # Save the columns created by get_dummies
-    with open('files/category_columns.txt', 'w') as file:
-        file.write(','.join(categories.columns))
+    with open("files/category_columns.txt", "w") as file:
+        file.write(",".join(categories.columns))
 
     def calculate_score(row):
         score = 0
         # RatingScore conditions
-        if not pd.isna(row['RatingScore']):
-            if row['RatingScore'] <= 1:
+        if not pd.isna(row["RatingScore"]):
+            if row["RatingScore"] <= 1:
                 score -= 10
-            elif row['RatingScore'] <= 2:
+            elif row["RatingScore"] <= 2:
                 score -= 7
-            elif row['RatingScore'] <= 3:
+            elif row["RatingScore"] <= 3:
                 score -= 3
-            elif row['RatingScore'] <= 4:
+            elif row["RatingScore"] <= 4:
                 score += 6
-            elif row['RatingScore'] <= 5:
+            elif row["RatingScore"] <= 5:
                 score += 10
 
         # LikeStatus conditions
-        if row['LikeStatus'] == 1:
+        if row["LikeStatus"] == 1:
             score += 4
-        elif row['LikeStatus'] == -1:
+        elif row["LikeStatus"] == -1:
             score -= 4
 
         # SaveStatus conditions
-        if row['SaveStatus'] == 1:
+        if row["SaveStatus"] == 1:
             score += 7
 
         return score
 
     # Apply the function to each row
-    df['Score'] = df.apply(calculate_score, axis=1)
+    df["Score"] = df.apply(calculate_score, axis=1)
 
-    df.drop(['RatingScore', 'LikeStatus', 'SaveStatus', 'Categories', 'ActivityName'], axis=1, inplace=True)
-    
-    lat_long_columns = ['Latitude', 'Longitude']
-    score_column = ['Score']
+    df.drop(
+        ["RatingScore", "LikeStatus", "SaveStatus", "Categories", "ActivityName"],
+        axis=1,
+        inplace=True,
+    )
+
+    lat_long_columns = ["Latitude", "Longitude"]
+    score_column = ["Score"]
 
     # Create separate scalers for lat-long and score
     scaler_lat_long = StandardScaler()
@@ -143,32 +149,32 @@ def create_df():
     df[score_column] = scaler_score.fit_transform(df[score_column])
 
     # Save the scalers
-    joblib.dump(scaler_lat_long, 'files/scaler_lat_long.joblib')
-    joblib.dump(scaler_score, 'files/scaler_score.joblib')
-    
+    joblib.dump(scaler_lat_long, "files/scaler_lat_long.joblib")
+    joblib.dump(scaler_score, "files/scaler_score.joblib")
+
     label_encoder_user = LabelEncoder()
     label_encoder_activity = LabelEncoder()
 
     # Fit and transform the data using the respective encoders
-    df['UserId'] = label_encoder_user.fit_transform(df['UserId'])
-    df['ActivityId'] = label_encoder_activity.fit_transform(df['ActivityId'])
+    df["UserId"] = label_encoder_user.fit_transform(df["UserId"])
+    df["ActivityId"] = label_encoder_activity.fit_transform(df["ActivityId"])
 
     # Save the label encoders
-    joblib.dump(label_encoder_user, 'files/label_encoder_user.joblib')
-    joblib.dump(label_encoder_activity, 'files/label_encoder_activity.joblib')
+    joblib.dump(label_encoder_user, "files/label_encoder_user.joblib")
+    joblib.dump(label_encoder_activity, "files/label_encoder_activity.joblib")
 
     return df
 
 
 def create_df_predict(user_id, activity_ids_str):
-    
+
     scaler_lat_long = joblib.load("files/scaler_lat_long.joblib")
     label_encoder_user = joblib.load("files/label_encoder_user.joblib")
     label_encoder_activity = joblib.load("files/label_encoder_activity.joblib")
-    
+
     with open("files/category_columns.txt", "r") as file:
         category_columns = file.read().split(",")
-    
+
     conn = establish_db_connection()
 
     # Modify the SQL query
@@ -231,5 +237,5 @@ def create_df_predict(user_id, activity_ids_str):
     df[columns_to_scale] = scaler_lat_long.transform(df[columns_to_scale])
     df["UserId"] = label_encoder_user.transform(df["UserId"])
     df["ActivityId"] = label_encoder_activity.transform(df["ActivityId"])
-    
+
     return df
