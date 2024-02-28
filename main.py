@@ -5,6 +5,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import uvicorn
 import xgboost
+from mangum import Mangum
 
 from utils import create_df, create_df_predict
 
@@ -66,6 +67,9 @@ async def predict(request: Request):
     )
 
     return json.dumps(prediction_output)
+
+
+handler = Mangum(app)
 
 
 if __name__ == "__main__":
